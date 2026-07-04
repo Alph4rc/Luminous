@@ -57,13 +57,14 @@ func (r *PGSchoolRepository) Close() {
 func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 	_, err := r.pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schools (
-			code       TEXT PRIMARY KEY,
-			name       TEXT NOT NULL,
-			website    TEXT NOT NULL DEFAULT '',
-			features   TEXT[] NOT NULL DEFAULT '{}',
-			enabled    BOOLEAN NOT NULL DEFAULT true,
-			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+			code           TEXT PRIMARY KEY,
+			name           TEXT NOT NULL,
+			website        TEXT NOT NULL DEFAULT '',
+			features       TEXT[] NOT NULL DEFAULT '{}',
+			enabled        BOOLEAN NOT NULL DEFAULT true,
+			week_start_day INTEGER NOT NULL DEFAULT 0,
+			created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		);
 	`)
 	if err != nil {
@@ -73,11 +74,12 @@ func (r *PGSchoolRepository) autoMigrate(ctx context.Context) error {
 	// Ensure columns exist for forward-compatible schema evolution.
 	// New columns added in the future should use ALTER TABLE ... ADD COLUMN IF NOT EXISTS.
 	columns := map[string]string{
-		"website":    "TEXT NOT NULL DEFAULT ''",
-		"features":   "TEXT[] NOT NULL DEFAULT '{}'",
-		"enabled":    "BOOLEAN NOT NULL DEFAULT true",
-		"created_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
-		"updated_at": "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+		"website":        "TEXT NOT NULL DEFAULT ''",
+		"features":       "TEXT[] NOT NULL DEFAULT '{}'",
+		"enabled":        "BOOLEAN NOT NULL DEFAULT true",
+		"week_start_day": "INTEGER NOT NULL DEFAULT 0",
+		"created_at":     "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+		"updated_at":     "TIMESTAMPTZ NOT NULL DEFAULT NOW()",
 	}
 	for col, def := range columns {
 		query := `ALTER TABLE schools ADD COLUMN IF NOT EXISTS ` + pgx.Identifier{col}.Sanitize() + ` ` + def
@@ -95,11 +97,11 @@ func (r *PGSchoolRepository) FindAll(ctx context.Context, offset, limit int) ([]
 	var err error
 	if limit > 0 {
 		rows, err = r.pool.Query(ctx,
-			`SELECT code, name, website, features, enabled, created_at, updated_at
+			`SELECT code, name, website, features, enabled, week_start_day, created_at, updated_at
 			 FROM schools ORDER BY code LIMIT $1 OFFSET $2`, limit, offset)
 	} else {
 		rows, err = r.pool.Query(ctx,
-			`SELECT code, name, website, features, enabled, created_at, updated_at
+			`SELECT code, name, website, features, enabled, week_start_day, created_at, updated_at
 			 FROM schools ORDER BY code`)
 	}
 	if err != nil {
@@ -132,7 +134,7 @@ func (r *PGSchoolRepository) Count(ctx context.Context) (int, error) {
 
 func (r *PGSchoolRepository) FindEnabled(ctx context.Context) ([]*model.School, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT code, name, website, features, enabled, created_at, updated_at
+		`SELECT code, name, website, features, enabled, week_start_day, created_at, updated_at
 		 FROM schools WHERE enabled = true ORDER BY code`)
 	if err != nil {
 		return nil, fmt.Errorf("find enabled schools: %w", err)
@@ -155,7 +157,7 @@ func (r *PGSchoolRepository) FindEnabled(ctx context.Context) ([]*model.School, 
 
 func (r *PGSchoolRepository) FindByCode(ctx context.Context, code string) (*model.School, error) {
 	row := r.pool.QueryRow(ctx,
-		`SELECT code, name, website, features, enabled, created_at, updated_at
+		`SELECT code, name, website, features, enabled, week_start_day, created_at, updated_at
 		 FROM schools WHERE code = $1`, code)
 	return scanSchool(row)
 }
@@ -169,12 +171,12 @@ func (r *PGSchoolRepository) Create(ctx context.Context, school *model.School) e
 	}
 
 	tag, err := r.pool.Exec(ctx,
-		`INSERT INTO schools (code, name, website, features, enabled, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`INSERT INTO schools (code, name, website, features, enabled, week_start_day, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 ON CONFLICT (code) DO NOTHING`,
 		school.Code, school.Name, school.Website,
 		featuresToStrings(school.Features), school.Enabled,
-		school.CreatedAt, school.UpdatedAt)
+		school.WeekStartDay, school.CreatedAt, school.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create school: %w", err)
 	}
@@ -189,10 +191,10 @@ func (r *PGSchoolRepository) Update(ctx context.Context, school *model.School) e
 
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE schools
-		 SET name=$1, website=$2, features=$3, enabled=$4, updated_at=$5
-		 WHERE code=$6`,
+		 SET name=$1, website=$2, features=$3, enabled=$4, week_start_day=$5, updated_at=$6
+		 WHERE code=$7`,
 		school.Name, school.Website, featuresToStrings(school.Features),
-		school.Enabled, school.UpdatedAt, school.Code)
+		school.Enabled, school.WeekStartDay, school.UpdatedAt, school.Code)
 	if err != nil {
 		return fmt.Errorf("update school: %w", err)
 	}
@@ -218,7 +220,7 @@ func scanSchool(row pgx.Row) (*model.School, error) {
 	var s model.School
 	var features []string
 	err := row.Scan(&s.Code, &s.Name, &s.Website, &features,
-		&s.Enabled, &s.CreatedAt, &s.UpdatedAt)
+		&s.Enabled, &s.WeekStartDay, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, fmt.Errorf("%w", ErrNotFound)
