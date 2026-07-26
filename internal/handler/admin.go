@@ -90,11 +90,12 @@ func (h *AdminHandler) CreateSchool(c *gin.Context) {
 	}
 
 	school := &model.School{
-		Code:     req.Code,
-		Name:     req.Name,
-		Website:  req.Website,
-		Features: req.Features,
-		Enabled:  true,
+		Code:         req.Code,
+		Name:         req.Name,
+		Website:      req.Website,
+		Features:     req.Features,
+		Enabled:      true,
+		WeekStartDay: req.WeekStartDay,
 	}
 
 	if err := h.repo.Create(c.Request.Context(), school); err != nil {
@@ -160,6 +161,9 @@ func (h *AdminHandler) UpdateSchool(c *gin.Context) {
 	}
 	if req.Enabled != nil {
 		existing.Enabled = *req.Enabled
+	}
+	if req.WeekStartDay != nil {
+		existing.WeekStartDay = *req.WeekStartDay
 	}
 
 	if err := h.repo.Update(c.Request.Context(), existing); err != nil {

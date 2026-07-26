@@ -17,47 +17,67 @@
 ```
 Luminous/
 ├── cmd/
-│   ├── server/main.go            # HTTP 服务入口，优雅关闭
-│   └── migrate/main.go           # JSON → PostgreSQL 数据迁移工具
+│   ├── server/main.go              # HTTP 服务入口，优雅关闭
+│   ├── migrate/main.go             # JSON → PostgreSQL 数据迁移工具
+│   └── luminous-mcp-server/main.go # MCP Server 入口（stdio 传输）
 ├── data/
-│   └── schools.json              # 种子数据（4 所西安高校）
+│   └── schools.json                # 种子数据（4 所西安高校）
 ├── internal/
 │   ├── config/
-│   │   └── config.go             # 配置加载（.env + 环境变量）
+│   │   └── config.go               # 配置加载（.env + 环境变量）
 │   ├── handler/
-│   │   ├── school.go             # 公开学校接口（列表 / 详情）
-│   │   ├── admin.go              # 管理员 CRUD 接口（需认证）
-│   │   ├── app.go                # App 版本信息代理接口
-│   │   ├── school_service.go     # 学校服务接口定义（扩展预留）
-│   │   └── school_test.go        # 公开接口单元测试
+│   │   ├── school.go               # 公开学校接口（列表 / 详情）
+│   │   ├── admin.go                # 管理员 CRUD 接口（需认证）
+│   │   ├── app.go                  # App 版本信息代理接口
+│   │   └── school_test.go          # 公开接口单元测试
+│   ├── httpclient/
+│   │   ├── client.go               # MCP 工具用 HTTP 客户端（Bearer token、超时）
+│   │   └── client_test.go          # HTTP 客户端单元测试
+│   ├── mcp/
+│   │   ├── protocol.go             # JSON-RPC 2.0 / MCP 类型定义
+│   │   ├── handler.go              # MCP 方法路由（initialize / tools/list / tools/call）
+│   │   ├── server.go               # Stdio 传输层
+│   │   └── server_test.go          # MCP 协议集成测试
 │   ├── middleware/
-│   │   ├── auth.go               # Bearer Token 认证中间件
-│   │   ├── cors.go               # CORS 跨域中间件
-│   │   ├── ratelimit.go          # 令牌桶速率限制中间件
-│   │   ├── request_id.go         # X-Request-ID 生成 / 转发中间件
-│   │   └── bodylimit.go          # 请求体大小限制中间件
+│   │   ├── auth.go                 # Bearer Token 认证中间件
+│   │   ├── cors.go                 # CORS 跨域中间件
+│   │   ├── ratelimit.go            # 令牌桶速率限制中间件
+│   │   ├── request_id.go           # X-Request-ID 生成 / 转发中间件
+│   │   └── bodylimit.go            # 请求体大小限制中间件
 │   ├── model/
-│   │   ├── school.go             # School 实体、Feature 枚举、请求结构体
-│   │   └── releaseInfo.go        # App 版本发布信息结构体
+│   │   ├── school.go               # School 实体、Feature 枚举、请求结构体
+│   │   └── releaseInfo.go          # App 版本发布信息结构体
 │   ├── repository/
-│   │   ├── school_repo.go        # SchoolRepository 接口 + JSON 文件实现
-│   │   ├── school_repo_pg.go     # PostgreSQL 实现（pgxpool）
-│   │   ├── school_repo_test.go   # JSON 仓库单元测试
-│   │   └── school_repo_pg_test.go# PG 仓库集成测试（build tag: integration）
+│   │   ├── school_repo.go          # SchoolRepository 接口 + JSON 文件实现
+│   │   ├── school_repo_pg.go       # PostgreSQL 实现（pgxpool）
+│   │   ├── school_repo_test.go     # JSON 仓库单元测试
+│   │   └── school_repo_pg_test.go  # PG 仓库集成测试（build tag: integration）
 │   ├── response/
-│   │   └── response.go           # 统一 JSON 响应格式
+│   │   └── response.go             # 统一 JSON 响应格式
 │   ├── router/
-│   │   └── router.go             # Gin 路由注册与中间件挂载
+│   │   └── router.go               # Gin 路由注册与中间件挂载
+│   ├── skill/
+│   │   ├── skill.go                # Tool 接口 + ToolDef / InputSchema 定义
+│   │   └── registry.go             # 工具注册表（线程安全）
+│   ├── skills/
+│   │   ├── query_school.go         # query_school 工具（查询学校详情）
+│   │   └── query_school_test.go    # query_school 单元测试
 │   └── util/
-│       └── httpclient.go         # HTTP 客户端（重试、User-Agent 轮换、超时）
-├── .env.example                  # 环境变量示例
+│       └── httpclient.go           # 通用 HTTP 客户端（重试、UA 轮换、SSRF 防护）
+├── .claude/
+│   └── skills/
+│       └── query_school/
+│           └── SKILL.md            # Claude Code Skill 说明文档
+├── examples/
+│   └── mcp-config.example.json     # MCP Client 配置示例
+├── .env.example                    # 环境变量示例
 ├── .gitignore
 ├── .dockerignore
-├── Dockerfile                    # 多阶段构建，非 root 用户
-├── Makefile                      # run / build / clean / test
+├── Dockerfile                      # 多阶段构建，非 root 用户
+├── Makefile                        # run / build / clean / test
 ├── go.mod
 ├── go.sum
-└── LICENSE                       # GPLv3
+└── LICENSE                         # GPLv3
 ```
 
 ## 各模块说明
@@ -68,6 +88,7 @@ Luminous/
 |------|------|
 | `cmd/server/main.go` | 服务主入口。加载配置 → 设置 Gin 模式 → 连接 PostgreSQL → 创建三层 handler → 注册路由 → 启动 HTTP（可选 TLS）→ 监听 SIGINT/SIGTERM 优雅关闭（10s 超时）。关闭时停止限流清理协程。 |
 | `cmd/migrate/main.go` | 一次性数据迁移工具。读取种子 JSON，逐条 INSERT 到 PostgreSQL（`ON CONFLICT DO NOTHING`）。默认路径 `./data/schools.json`，可通过命令行参数覆盖。 |
+| `cmd/luminous-mcp-server/main.go` | MCP Server 入口。加载环境变量 → 创建 HTTP 客户端 → 注册 skill → 启动 stdio MCP Server。供 Claude Code / Claude Desktop 等 MCP Client 调用。 |
 
 ### 配置层 (`internal/config/`)
 
@@ -109,6 +130,19 @@ Luminous/
 | `middleware/ratelimit.go` | 令牌桶速率限制。每 IP 独立计数，速率和突发可配置（默认 10 req/s / 30）。后台协程清理过期记录，支持 `StopRateLimiter()` 优雅停止。设置 `X-RateLimit-Limit`、`X-RateLimit-Remaining`、`Retry-After` 响应头。 |
 | `middleware/request_id.go` | 请求链路追踪。优先使用 `X-Request-ID` 请求头（防注入清理：去非打印字符、限 64 字符），无则 `crypto/rand` 生成 16 位 hex。 |
 | `middleware/bodylimit.go` | 请求体大小限制。Admin 路由组使用 1MB 限制，防止大 JSON 攻击。 |
+
+### MCP Server 层
+
+| 文件 | 说明 |
+|------|------|
+| `cmd/luminous-mcp-server/main.go` | MCP Server 入口。读取 `API_BASE_URL` / `API_TOKEN` / `HTTP_TIMEOUT_SECONDS` / `LOG_LEVEL` 环境变量 → 创建 HTTP 客户端 → 注册工具 → 启动 stdio MCP Server。日志输出到 stderr，协议消息输出到 stdout。 |
+| `mcp/protocol.go` | JSON-RPC 2.0 请求 / 响应 / 错误类型定义。MCP 标准类型：`InitializeParams` / `InitializeResult`、`CallToolParams` / `CallToolResult` 等。遵循 MCP 2024-11-05 协议。 |
+| `mcp/handler.go` | MCP 方法路由分发。支持 `initialize`、`tools/list`、`tools/call`、`ping` 及 `notifications/initialized` 通知。工具执行失败时通过 `isError=true` 而非 JSON-RPC error 返回，符合 MCP 规范。 |
+| `mcp/server.go` | Stdio 传输层。`bufio.Scanner` 从 stdin 逐行读取 JSON-RPC 请求，处理后通过 `json.Encoder` 写入 stdout。buffer 上限 2MB，适应大型工具结果。 |
+| `skill/skill.go` | `Tool` 接口定义（`Definition()` + `Execute()`）及 MCP 工具元数据类型：`ToolDef`、`InputSchema`、`PropertyDef`。 |
+| `skill/registry.go` | 线程安全的工具注册表。`Register()` 防重复、`Get()` 按名查找、`List()` 返回全部工具定义。 |
+| `httpclient/client.go` | 轻量 HTTP 客户端。支持可选 Bearer Token、可配置超时、context 控制。错误信息仅包含 HTTP 状态码，不泄露响应体。 |
+| `skills/query_school.go` | `query_school` 工具实现。调用 `GET /api/v1/schools/{school_code}`，返回学校名称、网站、教务功能列表等结构化 JSON。参数校验、JSON 合法性检查。 |
 
 ### 辅助层
 
@@ -359,8 +393,8 @@ curl -X PUT http://localhost:8080/api/v1/admin/schools/XAUAT \
 
 | 值 | 说明 |
 |----|------|
-| `login` | SSO 登录 |
-| `timetable` | 课表显示 |
+| `login` | 登录 |
+| `timetable` | 日历功能 |
 | `grade_query` | 成绩查询 |
 | `gpa_calculation` | GPA 计算 |
 | `exam_schedule` | 考试安排 |
@@ -427,3 +461,249 @@ go test -tags=integration ./internal/repository/
 go vet ./...
 go fmt ./...
 ```
+
+---
+
+## MCP Server
+
+本项目包含一个 MCP (Model Context Protocol) Server，允许 Claude Code、Claude Desktop 等 MCP Client 通过标准化协议调用后端 HTTP API。
+
+### 什么是 MCP Server
+
+MCP Server 是一个基于 JSON-RPC 2.0 的工具服务器，通过 stdio 与 AI Agent 通信。Agent 可以自动发现服务器提供的工具（tools），并调用它们来获取实时数据或执行操作。
+
+### 快速开始
+
+```bash
+# 设置环境变量
+export API_BASE_URL=http://localhost:8080
+export API_TOKEN=""               # 可选
+export HTTP_TIMEOUT_SECONDS=10
+export LOG_LEVEL=info
+
+# 启动 MCP Server
+go run ./cmd/luminous-mcp-server
+```
+
+启动后服务器在 stdio 上等待 JSON-RPC 请求（由 MCP Client 自动管理）。
+
+### 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `API_BASE_URL` | `http://localhost:8080` | 后端 API 基础 URL |
+| `API_TOKEN` | `""` | 可选，Bearer Token。设置后所有请求携带 `Authorization: Bearer ${API_TOKEN}` |
+| `HTTP_TIMEOUT_SECONDS` | `10` | HTTP 请求超时秒数 |
+| `LOG_LEVEL` | `info` | 日志级别：`debug`、`info`、`warn`、`error` |
+
+日志统一输出到 **stderr**，MCP 协议消息输出到 **stdout**，两者互不干扰。
+
+### 接入 Claude Code
+
+1. 在项目根目录创建或编辑 `.claude/mcp.json`（或全局 `~/.claude/mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "luminous-mcp-server": {
+      "command": "go",
+      "args": ["run", "./cmd/luminous-mcp-server"],
+      "cwd": "/path/to/Luminous",
+      "env": {
+        "API_BASE_URL": "http://localhost:8080",
+        "API_TOKEN": "",
+        "HTTP_TIMEOUT_SECONDS": "10",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+2. 重新启动 Claude Code，工具 `query_school` 将自动可用。
+
+3. 参考配置示例：`examples/mcp-config.example.json`
+
+### 接入 Claude Desktop
+
+在 Claude Desktop 的配置文件中添加 MCP Server 配置：
+
+```json
+{
+  "mcpServers": {
+    "luminous-mcp-server": {
+      "command": "go",
+      "args": ["run", "./cmd/luminous-mcp-server"],
+      "cwd": "/absolute/path/to/Luminous",
+      "env": {
+        "API_BASE_URL": "http://localhost:8080"
+      }
+    }
+  }
+}
+```
+
+### 接入其他 MCP Client
+
+任何支持 MCP stdio 传输的客户端都可以接入。仅需配置 `command` 和 `args` 即可。
+
+### 已注册的工具
+
+#### query_school
+
+根据学校代码查询学校详情（名称、网站、教务功能列表），对应 Luminous API `GET /api/v1/schools/:code`。
+
+**输入：**
+```json
+{ "school_code": "XAUAT" }
+```
+
+**输出：**
+```json
+{
+  "code": 200,
+  "message": "success",
+  "data": {
+    "code": "XAUAT",
+    "name": "西安建筑科技大学",
+    "website": "https://xauatapi.xauat.site",
+    "features": ["login", "timetable", "grade_query"],
+    "enabled": true
+  }
+}
+```
+
+**详细说明：** 参见 `.claude/skills/query_school/SKILL.md`
+
+### tools/list 示例
+
+```bash
+# 模拟 JSON-RPC tools/list 请求
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | go run ./cmd/luminous-mcp-server
+```
+
+响应：
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "tools": [
+      {
+        "name": "query_school",
+        "description": "根据学校代码查询学校详情。调用时机：当用户询问某所学校的基本信息、网站地址、支持的功能列表时使用...",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "school_code": { "type": "string", "description": "学校代码，例如 XAUAT" }
+          },
+          "required": ["school_code"]
+        }
+      }
+    ]
+  }
+}
+```
+
+### tools/call 示例
+
+```bash
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query_school","arguments":{"school_code":"XAUAT"}}}' | go run ./cmd/luminous-mcp-server
+```
+
+### 如何新增一个 Tool
+
+1. 在 `internal/skills/` 下创建新文件（如 `query_user.go`）
+2. 实现 `skill.Tool` 接口：
+
+```go
+type MyTool struct {
+    client *httpclient.Client
+}
+
+func (t *MyTool) Definition() skill.ToolDef {
+    return skill.ToolDef{
+        Name:        "my_tool",
+        Description: "工具描述",
+        InputSchema: skill.InputSchema{
+            Type: "object",
+            Properties: map[string]skill.PropertyDef{
+                "param1": {Type: "string", Description: "参数说明"},
+            },
+            Required: []string{"param1"},
+        },
+    }
+}
+
+func (t *MyTool) Execute(ctx context.Context, args map[string]any) (string, error) {
+    // 1. 从 args 中提取参数
+    // 2. 调用 c.client.Get(ctx, "path") 或自定义 HTTP 逻辑
+    // 3. 返回 JSON 字符串
+    return `{"result":"ok"}`, nil
+}
+```
+
+3. 在 `cmd/luminous-mcp-server/main.go` 中注册：
+
+```go
+registry.Register(skills.NewMyTool(httpClient))
+```
+
+4. 如果需要 Claude Code Skill 说明，在 `.claude/skills/<tool_name>/SKILL.md` 中添加文档。
+
+### 如何把已有 HTTP API 包装成 MCP Tool
+
+1. 确定 API 的路径、参数和返回值
+2. 在 `internal/skills/` 下创建 Tool 实现
+3. 在 `Execute` 方法中调用 `httpclient.Client.Get(ctx, path)`
+4. 注册到 Registry
+5. 不需要修改 MCP Server 核心代码
+
+### 测试
+
+```bash
+# 运行所有测试（包括 MCP 相关）
+go test ./internal/...
+
+# 仅运行 MCP Server 测试
+go test ./internal/mcp/ -v
+
+# 仅运行 HTTP Client 测试
+go test ./internal/httpclient/ -v
+
+# 仅运行 query_school 工具测试
+go test ./internal/skills/ -v
+```
+
+### 常见问题
+
+**Q: 启动后看不到任何输出？**
+
+A: 正常。MCP Server 在 stdio 模式下等待 JSON-RPC 请求，日志输出到 stderr。只有收到 MCP Client 发送的请求时才会有响应。
+
+**Q: Claude Code 中看不到工具？**
+
+A: 检查：
+1. `mcp.json` 中 `cwd` 路径是否正确
+2. `go run ./cmd/luminous-mcp-server` 是否能单独启动（无错误退出）
+3. 环境变量是否正确配置
+4. Claude Code 版本是否支持 MCP
+
+**Q: 请求后端返回 404？**
+
+A: 确认 `API_BASE_URL` 配置正确，且后端服务正在运行。
+
+**Q: 如何调试？**
+
+A: 设置 `LOG_LEVEL=debug`，日志将输出到 stderr。可以重定向 stderr 查看：
+```bash
+go run ./cmd/luminous-mcp-server 2>debug.log
+```
+
+**Q: 如何避免泄露 API_TOKEN？**
+
+A: 
+- 不要在日志中打印 token
+- 不要在 HTTP 错误信息中包含响应体
+- 使用环境变量注入 token，不要硬编码
+- 代码中已实现上述安全措施

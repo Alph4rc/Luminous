@@ -103,25 +103,28 @@ func isPrivateIP(host string) bool {
 }
 
 type School struct {
-	Code      string    `json:"code"`
-	Name      string    `json:"name"`
-	Website   string    `json:"website"`
-	Features  []Feature `json:"features"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Code         string    `json:"code"`
+	Name         string    `json:"name"`
+	Website      string    `json:"website"`
+	Features     []Feature `json:"features"`
+	Enabled      bool      `json:"enabled"`
+	WeekStartDay int       `json:"week_start_day"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type CreateSchoolRequest struct {
-	Code     string    `json:"code" binding:"required"`
-	Name     string    `json:"name" binding:"required"`
-	Website  string    `json:"website" binding:"required"`
-	Features []Feature `json:"features" binding:"required"`
+	Code         string    `json:"code" binding:"required"`
+	Name         string    `json:"name" binding:"required"`
+	Website      string    `json:"website" binding:"required"`
+	Features     []Feature `json:"features" binding:"required"`
+	WeekStartDay int       `json:"week_start_day"`
 }
 
 type UpdateSchoolRequest struct {
-	Name     *string    `json:"name"`
-	Website  *string    `json:"website"`
-	Features *[]Feature `json:"features"`
-	Enabled  *bool      `json:"enabled"`
+	Name         *string    `json:"name"`
+	Website      *string    `json:"website"`
+	Features     *[]Feature `json:"features"`
+	Enabled      *bool      `json:"enabled"`
+	WeekStartDay *int       `json:"week_start_day"`
 }
