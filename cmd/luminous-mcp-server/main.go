@@ -59,10 +59,16 @@ func main() {
 	// ── tool registry ────────────────────────────────────────────
 	registry := skill.NewRegistry()
 
-	if err := registry.Register(skills.NewQuerySchool(httpClient)); err != nil {
-		slog.Error("failed to register query_school tool", "error", err)
-		os.Exit(1)
-	}
+	// Public tools (no auth required)
+	registerTool(registry, skills.NewQuerySchool(httpClient))
+	registerTool(registry, skills.NewListSchools(httpClient))
+	registerTool(registry, skills.NewGetAppInfo(httpClient))
+
+	// Admin tools (require API_TOKEN set in env)
+	registerTool(registry, skills.NewAdminListSchools(httpClient))
+	registerTool(registry, skills.NewAdminCreateSchool(httpClient))
+	registerTool(registry, skills.NewAdminUpdateSchool(httpClient))
+	registerTool(registry, skills.NewAdminDeleteSchool(httpClient))
 
 	slog.Info("registered tools", "count", len(registry.List()))
 
@@ -110,5 +116,12 @@ func parseLogLevel(s string) slog.Level {
 	default:
 		fmt.Fprintf(os.Stderr, "WARNING: unknown LOG_LEVEL %q, falling back to info\n", s)
 		return slog.LevelInfo
+	}
+}
+
+func registerTool(registry *skill.Registry, t skill.Tool) {
+	if err := registry.Register(t); err != nil {
+		slog.Error("failed to register tool", "name", t.Definition().Name, "error", err)
+		os.Exit(1)
 	}
 }

@@ -14,9 +14,9 @@ import (
 // appropriate method handlers. It is I/O agnostic and can be used with
 // any transport (stdio, SSE, etc.).
 type Handler struct {
-	registry      *skill.Registry
-	serverInfo    info
-	initialized   bool
+	registry    *skill.Registry
+	serverInfo  info
+	initialized bool
 }
 
 // NewHandler creates an MCP Handler with the given tool registry.

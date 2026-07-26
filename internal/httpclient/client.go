@@ -4,6 +4,7 @@
 package httpclient
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -34,16 +35,12 @@ func NewClient(baseURL, token string, timeout time.Duration) *Client {
 	}
 }
 
-// Get performs a GET request to baseURL+path and returns the response body.
-// If the token was set during construction, an Authorization: Bearer header
-// is added. The caller MUST provide a context with the desired timeout.
-//
-// On HTTP errors (status >= 400) the error message includes the status code
-// but does NOT include the response body to avoid leaking sensitive data.
-func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
+// doRequest handles the common HTTP request logic: URL construction, token
+// injection, execution, and body reading.
+func (c *Client) doRequest(ctx context.Context, method, path string, body io.Reader) ([]byte, error) {
 	url := c.baseURL + "/" + strings.TrimLeft(path, "/")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -52,23 +49,50 @@ func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
 
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request to %s failed: %w", url, err)
 	}
 	defer resp.Body.Close()
 
-	// Read full body — used for both success and capped error snippets.
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	// Read full body for success responses (1MB cap for safety).
+	// Error responses are discarded — the status code alone is returned to
+	// avoid leaking sensitive data into error messages.
+	if resp.StatusCode >= 400 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+		return nil, fmt.Errorf("upstream returned HTTP %d", resp.StatusCode)
+	}
+
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("upstream returned HTTP %d", resp.StatusCode)
-	}
+	return respBody, nil
+}
 
-	return body, nil
+// Get performs a GET request to baseURL+path and returns the response body.
+func (c *Client) Get(ctx context.Context, path string) ([]byte, error) {
+	return c.doRequest(ctx, http.MethodGet, path, nil)
+}
+
+// Post performs a POST request to baseURL+path with the given JSON body.
+func (c *Client) Post(ctx context.Context, path string, jsonBody []byte) ([]byte, error) {
+	return c.doRequest(ctx, http.MethodPost, path, bytes.NewReader(jsonBody))
+}
+
+// Put performs a PUT request to baseURL+path with the given JSON body.
+func (c *Client) Put(ctx context.Context, path string, jsonBody []byte) ([]byte, error) {
+	return c.doRequest(ctx, http.MethodPut, path, bytes.NewReader(jsonBody))
+}
+
+// Delete performs a DELETE request to baseURL+path.
+func (c *Client) Delete(ctx context.Context, path string) ([]byte, error) {
+	return c.doRequest(ctx, http.MethodDelete, path, nil)
 }
 
 // BaseURL returns the configured base URL (without trailing slash).

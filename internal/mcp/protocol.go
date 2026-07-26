@@ -26,21 +26,21 @@ type jsonrpcRequest struct {
 
 // jsonrpcResponse is a JSON-RPC 2.0 success response.
 type jsonrpcResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      int64       `json:"id"`
+	JSONRPC string `json:"jsonrpc"`
+	ID      int64  `json:"id"`
 	Result  any    `json:"result"`
 }
 
 // jsonrpcError is a JSON-RPC 2.0 error response.
 type jsonrpcError struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      int64       `json:"id"`
-	Error   rpcError    `json:"error"`
+	JSONRPC string   `json:"jsonrpc"`
+	ID      int64    `json:"id"`
+	Error   rpcError `json:"error"`
 }
 
 type rpcError struct {
-	Code    int         `json:"code"`
-	Message string      `json:"message"`
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
 }
 
@@ -62,18 +62,18 @@ func (r *jsonrpcRequest) isNotification() bool {
 
 // InitializeParams is sent by the client during the initialize handshake.
 type InitializeParams struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    clientCapabilities `json:"capabilities"`
-	ClientInfo      info              `json:"clientInfo"`
+	ClientInfo      info               `json:"clientInfo"`
 }
 
 type clientCapabilities struct{}
 
 // InitializeResult is returned by the server after a successful initialize.
 type InitializeResult struct {
-	ProtocolVersion string            `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    serverCapabilities `json:"capabilities"`
-	ServerInfo      info              `json:"serverInfo"`
+	ServerInfo      info               `json:"serverInfo"`
 }
 
 type serverCapabilities struct {
@@ -96,7 +96,7 @@ type ListToolsResult struct {
 
 // CallToolParams is sent by the client to invoke a tool.
 type CallToolParams struct {
-	Name      string                 `json:"name"`
+	Name      string         `json:"name"`
 	Arguments map[string]any `json:"arguments,omitempty"`
 }
 

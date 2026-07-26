@@ -104,8 +104,8 @@ func NewHTTPClient() *HTTPClient {
 func NewHTTPClientWithAllowedHosts(allowedHosts map[string]bool) *HTTPClient {
 	return &HTTPClient{
 		client: &http.Client{
-			Timeout:        DefaultTimeout,
-			CheckRedirect:  safeCheckRedirect(allowedHosts),
+			Timeout:       DefaultTimeout,
+			CheckRedirect: safeCheckRedirect(allowedHosts),
 		},
 	}
 }
