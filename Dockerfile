@@ -4,12 +4,27 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
+ENV GO111MODULE=on
+ENV GOPROXY=https://goproxy.cn
+
+ARG GO_BUILD_TAGS=nomsgpack
+ARG GO_BUILD_PARALLEL=2
+
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+	go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o luminous ./cmd/server/
+RUN --mount=type=cache,target=/go/pkg/mod \
+	--mount=type=cache,target=/root/.cache/go-build \
+	CGO_ENABLED=0 GOOS=linux go build \
+		-tags="${GO_BUILD_TAGS}" \
+		-p="${GO_BUILD_PARALLEL}" \
+		-trimpath \
+		-buildvcs=false \
+		-ldflags="-s -w" \
+		-o luminous ./cmd/server/
 
 FROM alpine:latest
 
