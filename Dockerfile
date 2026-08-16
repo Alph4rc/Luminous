@@ -4,6 +4,9 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /build
 
+ENV GO111MODULE=on
+ENV GOPROXY=https://goproxy.cn
+
 COPY go.mod go.sum ./
 RUN go mod download
 
